@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Signal / Churn risk desk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Signal home"><span class="brand-mark">+</span><span>SIGNAL</span></a>
+      <div class="status"><span class="status-dot" id="status-dot"></span><span id="status-text">Checking model</span><a href="/docs" target="_blank">API docs <span aria-hidden="true">↗</span></a></div>
+    </header>
+
+    <section class="intro">
+      <p class="eyebrow">CUSTOMER INTELLIGENCE / 01</p>
+      <h1>Find the customers<br><em>worth keeping.</em></h1>
+      <p class="lede">Enter a customer profile to estimate their likelihood of churn. Use the signal to prioritize a thoughtful next conversation.</p>
+    </section>
+
+    <section class="workspace">
+      <form id="prediction-form" class="panel form-panel">
+        <div class="panel-heading"><div><p class="eyebrow">PROFILE INPUT</p><h2>Customer details</h2></div><span class="step">01 / 01</span></div>
+        <div class="form-grid">
+          <label>Gender<select name="gender"><option>Female</option><option>Male</option></select></label>
+          <label>Senior citizen<select name="SeniorCitizen"><option value="0">No</option><option value="1">Yes</option></select></label>
+          <label>Partner<select name="Partner"><option>Yes</option><option>No</option></select></label>
+          <label>Dependents<select name="Dependents"><option>No</option><option>Yes</option></select></label>
+          <label>Tenure <span class="unit">months</span><input name="tenure" type="number" min="0" max="72" value="12" required></label>
+          <label>Monthly charges <span class="unit">USD</span><input name="MonthlyCharges" type="number" min="0.01" step="0.01" value="79.85" required></label>
+          <label>Total charges <span class="unit">USD</span><input name="TotalCharges" type="number" min="0" step="0.01" value="958.20" required></label>
+          <label>Phone service<select name="PhoneService"><option>Yes</option><option>No</option></select></label>
+          <label>Multiple lines<select name="MultipleLines"><option>No</option><option>Yes</option><option>No phone service</option></select></label>
+          <label>Internet service<select name="InternetService"><option>Fiber optic</option><option>DSL</option><option>No</option></select></label>
+          <label>Online security<select name="OnlineSecurity"><option>No</option><option>Yes</option><option>No internet service</option></select></label>
+          <label>Online backup<select name="OnlineBackup"><option>Yes</option><option>No</option><option>No internet service</option></select></label>
+          <label>Device protection<select name="DeviceProtection"><option>No</option><option>Yes</option><option>No internet service</option></select></label>
+          <label>Tech support<select name="TechSupport"><option>No</option><option>Yes</option><option>No internet service</option></select></label>
+          <label>Streaming TV<select name="StreamingTV"><option>Yes</option><option>No</option><option>No internet service</option></select></label>
+          <label>Streaming movies<select name="StreamingMovies"><option>Yes</option><option>No</option><option>No internet service</option></select></label>
+          <label>Contract<select name="Contract"><option>Month-to-month</option><option>One year</option><option>Two year</option></select></label>
+          <label>Paperless billing<select name="PaperlessBilling"><option>Yes</option><option>No</option></select></label>
+          <label class="wide">Payment method<select name="PaymentMethod"><option>Electronic check</option><option>Mailed check</option><option>Bank transfer (automatic)</option><option>Credit card (automatic)</option></select></label>
+        </div>
+        <button class="primary-button" type="submit"><span>Run churn assessment</span><span aria-hidden="true">→</span></button>
+        <p class="form-error" id="form-error" role="alert"></p>
+      </form>
+
+      <aside class="results-column">
+        <div class="panel result-panel" id="result-panel" aria-live="polite">
+          <div class="panel-heading"><div><p class="eyebrow">PREDICTION</p><h2 id="result-title">Awaiting profile</h2></div><span class="signal-icon" id="signal-icon">◎</span></div>
+          <div class="result-empty" id="result-empty"><span class="empty-line"></span><p>Complete the profile and run an assessment to reveal the customer signal.</p></div>
+          <div class="result-content" id="result-content" hidden>
+            <div class="score-row"><div class="score" id="score">0%</div><div><p class="score-label">Churn probability</p><p class="score-note" id="score-note">Model confidence signal</p></div></div>
+            <div class="meter"><span id="meter-fill"></span></div>
+            <p class="recommendation" id="recommendation"></p>
+          </div>
+        </div>
+        <div class="panel metrics-panel"><div class="panel-heading"><div><p class="eyebrow">MODEL SNAPSHOT</p><h2>Performance</h2></div><span class="version" id="model-version">v—</span></div><div class="metrics" id="metrics"><div><strong>—</strong><span>F1 score</span></div><div><strong>—</strong><span>Recall</span></div><div><strong>—</strong><span>ROC-AUC</span></div></div></div>
+      </aside>
+    </section>
+    <footer><span>LOGISTIC REGRESSION / PRODUCTION MODEL</span><span>Built for earlier, better conversations.</span></footer>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
