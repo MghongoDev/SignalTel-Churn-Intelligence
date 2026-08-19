@@ -49,19 +49,35 @@ This project builds a complete ML solution for predicting whether a customer wil
 
 ```
 Telco-Customer-Churn/
+├── .gitignore
+├── .python-version
 ├── data/
 │   └── WA_Fn-UseC_-Telco-Customer-Churn.csv
 ├── models/
 │   └── churn_pipeline.joblib
 ├── app/
 │   └── main.py
+├── frontend/
+│   ├── app.js
+│   ├── index.html
+│   └── styles.css
 ├── notebooks/
-│   └── 01_eda_analysis.py
+│   ├── 01_eda_analysis.py
+│   └── eda_outputs/
+│       ├── 01_churn_distribution.png
+│       ├── 02_tenure_by_churn.png
+│       ├── 03_monthly_charges_by_churn.png
+│       ├── 04_churn_by_contract.png
+│       ├── 05_churn_by_internet.png
+│       └── 06_churn_by_payment.png
 ├── tests/
 │   └── test_api.py
+├── main.py
 ├── train_model.py
 ├── Dockerfile
+├── pyproject.toml
 ├── requirements.txt
+├── uv.lock
 └── README.md
 ```
 
