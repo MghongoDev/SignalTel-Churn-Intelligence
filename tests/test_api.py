@@ -2,6 +2,9 @@
 Automated tests for the FastAPI service.
 """
 
+import json
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -122,3 +125,12 @@ def test_model_info(client):
     assert "expected_features" in data
     assert "metrics" in data
     assert len(data["expected_features"]) == 19
+
+
+def test_model_info_comes_from_artifact(client):
+    metadata_path = Path(__file__).resolve().parent.parent / "models" / "churn_pipeline.metadata.json"
+    expected = json.loads(metadata_path.read_text())
+    data = client.get("/model-info").json()
+    assert data["model_type"] == expected["model_type"]
+    assert data["metrics"] == expected["metrics"]
+    assert data["target_labels"] == expected["target_labels"]

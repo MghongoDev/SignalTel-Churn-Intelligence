@@ -3,6 +3,7 @@ FastAPI service for the Telco Customer Churn Prediction API.
 """
 
 from contextlib import asynccontextmanager
+import json
 from math import isfinite
 from typing import Any, Dict, List, Literal
 from pathlib import Path
@@ -18,6 +19,7 @@ import pandas as pd
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = BASE_DIR / "models" / "churn_pipeline.joblib"
+METADATA_PATH = BASE_DIR / "models" / "churn_pipeline.metadata.json"
 FRONTEND_DIR = BASE_DIR / "frontend"
 model = None
 model_metadata = None
@@ -111,25 +113,13 @@ async def load_model():
     try:
         if MODEL_PATH.exists():
             model = joblib.load(MODEL_PATH)
-            model_metadata = {
-                "model_type": "Logistic Regression",
-                "version": "1.0.0",
-                "expected_features": [
-                    "gender", "SeniorCitizen", "Partner", "Dependents", "tenure",
-                    "PhoneService", "MultipleLines", "InternetService", "OnlineSecurity",
-                    "OnlineBackup", "DeviceProtection", "TechSupport", "StreamingTV",
-                    "StreamingMovies", "Contract", "PaperlessBilling", "PaymentMethod",
-                    "MonthlyCharges", "TotalCharges",
-                ],
-                "target_labels": {0: "No", 1: "Yes"},
-                "metrics": {
-                    "Accuracy": 0.7402,
-                    "Precision": 0.5061,
-                    "Recall": 0.7769,
-                    "F1": 0.6129,
-                    "ROC-AUC": 0.8397,
-                },
-            }
+            if METADATA_PATH.exists():
+                model_metadata = json.loads(METADATA_PATH.read_text())
+                model_metadata["target_labels"] = {
+                    int(key): value for key, value in model_metadata["target_labels"].items()
+                }
+            else:
+                print("Model metadata not found. /model-info will return 503.")
             print("Model loaded successfully")
         else:
             print("Model file not found. API will return 503 until the model is available.")
@@ -191,7 +181,7 @@ async def health_check():
     return {
         "status": "healthy",
         "model_loaded": True,
-        "model_type": model_metadata.get("model_type", "Unknown"),
+        "model_type": (model_metadata or {}).get("model_type", "Unknown"),
     }
 
 

@@ -1,0 +1,38 @@
+{
+  "model_type": "Logistic Regression",
+  "version": "1.0.0",
+  "expected_features": [
+    "gender",
+    "SeniorCitizen",
+    "Partner",
+    "Dependents",
+    "tenure",
+    "PhoneService",
+    "MultipleLines",
+    "InternetService",
+    "OnlineSecurity",
+    "OnlineBackup",
+    "DeviceProtection",
+    "TechSupport",
+    "StreamingTV",
+    "StreamingMovies",
+    "Contract",
+    "PaperlessBilling",
+    "PaymentMethod",
+    "MonthlyCharges",
+    "TotalCharges"
+  ],
+  "target_labels": {
+    "0": "No",
+    "1": "Yes"
+  },
+  "metrics": {
+    "Model": "Logistic Regression",
+    "Accuracy": 0.7402,
+    "Precision": 0.5061,
+    "Recall": 0.7769,
+    "F1": 0.6129,
+    "ROC-AUC": 0.8397
+  },
+  "random_state": 42
+}

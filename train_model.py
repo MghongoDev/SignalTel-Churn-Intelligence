@@ -3,6 +3,7 @@ Sections 3-6: Data Cleaning, Feature Engineering, Model Training, and Model Pers
 Telco Customer Churn Prediction Project
 """
 
+import json
 import os
 import pandas as pd
 import numpy as np
@@ -27,6 +28,7 @@ DATA_PATH = Path("data/WA_Fn-UseC_-Telco-Customer-Churn.csv")
 MODEL_DIR = Path("models")
 MODEL_DIR.mkdir(exist_ok=True)
 MODEL_PATH = MODEL_DIR / "churn_pipeline.joblib"
+METADATA_PATH = MODEL_DIR / "churn_pipeline.metadata.json"
 
 RANDOM_STATE = 42
 
@@ -171,11 +173,11 @@ def train_and_evaluate_models(X_train, X_test, y_train, y_test, preprocessor):
         
         results.append({
             'Model': name,
-            'Accuracy': round(acc, 4),
-            'Precision': round(prec, 4),
-            'Recall': round(rec, 4),
-            'F1': round(f1, 4),
-            'ROC-AUC': round(roc, 4) if roc else "N/A"
+            'Accuracy': round(float(acc), 4),
+            'Precision': round(float(prec), 4),
+            'Recall': round(float(rec), 4),
+            'F1': round(float(f1), 4),
+            'ROC-AUC': round(float(roc), 4) if roc else "N/A"
         })
         
         # Track best model by F1 (prioritized for imbalanced churn)
@@ -233,7 +235,9 @@ def save_model(pipeline, model_name, results_df, X_train):
     }
     
     print(f"✓ Model metadata prepared (features: {len(metadata['expected_features'])})")
-    
+    METADATA_PATH.write_text(json.dumps(metadata, indent=2) + "\n")
+    print(f"✓ Saved model metadata to: {METADATA_PATH}")
+
     return metadata
 
 if __name__ == "__main__":
