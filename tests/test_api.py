@@ -1,19 +1,12 @@
 """
-Section 10: Automated Testing with pytest and FastAPI TestClient
+Automated tests for the FastAPI service.
 """
 
 import pytest
 from fastapi.testclient import TestClient
-from app.main import app, load_model
-import json
 
-client = TestClient(app)
+from app.main import app
 
-# Manually load model for tests
-import asyncio
-asyncio.run(load_model())
-
-# Valid customer payload for testing
 VALID_CUSTOMER = {
     "gender": "Female",
     "SeniorCitizen": 0,
@@ -33,19 +26,25 @@ VALID_CUSTOMER = {
     "PaperlessBilling": "Yes",
     "PaymentMethod": "Electronic check",
     "MonthlyCharges": 79.85,
-    "TotalCharges": 958.20
+    "TotalCharges": 958.20,
 }
 
-def test_health_check():
-    """Test successful health check and model-ready status"""
+
+@pytest.fixture(scope="module")
+def client():
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+def test_health_check(client):
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "healthy"
     assert data["model_loaded"] is True
 
-def test_predict_single_success():
-    """Test successful single prediction with expected response structure"""
+
+def test_predict_single_success(client):
     response = client.post("/predict", json=VALID_CUSTOMER)
     assert response.status_code == 200
     data = response.json()
@@ -56,36 +55,65 @@ def test_predict_single_success():
     assert data["churn_label"] in ["Yes", "No"]
     assert 0 <= data["churn_probability"] <= 1
 
-def test_predict_invalid_type():
-    """Test invalid values and incorrect data types"""
+
+def test_predict_invalid_type(client):
     invalid = VALID_CUSTOMER.copy()
-    invalid["tenure"] = "twelve"  # wrong type
+    invalid["tenure"] = "twelve"
     response = client.post("/predict", json=invalid)
     assert response.status_code == 422
+    assert response.json()["detail"] == "Validation Error"
+    assert response.json()["errors"][0]["loc"] == ["body", "tenure"]
 
-def test_predict_missing_field():
-    """Test requests with required fields missing"""
-    incomplete = {k: v for k, v in VALID_CUSTOMER.items() if k != "tenure"}
+
+def test_predict_missing_field(client):
+    incomplete = {key: value for key, value in VALID_CUSTOMER.items() if key != "tenure"}
     response = client.post("/predict", json=incomplete)
     assert response.status_code == 422
+    assert response.json()["detail"] == "Validation Error"
 
-def test_predict_batch_success():
-    """Test successful batch predictions, including output order and count"""
+
+def test_predict_unknown_category(client):
+    invalid = VALID_CUSTOMER.copy()
+    invalid["Contract"] = "banana"
+    response = client.post("/predict", json=invalid)
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["type"] == "literal_error"
+
+
+def test_predict_nan_charge(client):
+    invalid = VALID_CUSTOMER.copy()
+    invalid["MonthlyCharges"] = float("nan")
+    response = client.post("/predict", json=invalid)
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Validation Error"
+    assert response.json()["errors"][0]["type"] == "finite_number"
+
+
+def test_predict_infinite_total_charges(client):
+    invalid = VALID_CUSTOMER.copy()
+    invalid["TotalCharges"] = float("inf")
+    response = client.post("/predict", json=invalid)
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["type"] == "finite_number"
+
+
+def test_predict_batch_success(client):
     batch_payload = {"customers": [VALID_CUSTOMER, VALID_CUSTOMER]}
     response = client.post("/predict-batch", json=batch_payload)
     assert response.status_code == 200
     data = response.json()
     assert data["count"] == 2
     assert len(data["predictions"]) == 2
-    assert all("prediction" in p for p in data["predictions"])
+    assert all("prediction" in prediction for prediction in data["predictions"])
 
-def test_predict_batch_empty():
-    """Test invalid or empty batch requests"""
+
+def test_predict_batch_empty(client):
     response = client.post("/predict-batch", json={"customers": []})
     assert response.status_code == 422
+    assert response.json()["detail"] == "Validation Error"
 
-def test_model_info():
-    """Test the model information endpoint and its expected metadata"""
+
+def test_model_info(client):
     response = client.get("/model-info")
     assert response.status_code == 200
     data = response.json()

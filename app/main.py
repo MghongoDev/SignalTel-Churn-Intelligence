@@ -1,75 +1,101 @@
 """
-Sections 7-9: FastAPI Application with Input Validation and Swagger Documentation
-Telco Customer Churn Prediction API
+FastAPI service for the Telco Customer Churn Prediction API.
 """
 
+from contextlib import asynccontextmanager
+from math import isfinite
+from typing import Any, Dict, List, Literal
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, validator
-from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field, field_validator
 import joblib
 import pandas as pd
-from pathlib import Path
-import os
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="Telco Customer Churn Prediction API",
-    description="Predicts customer churn probability using a trained ML pipeline",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
-)
-
-# Model paths
 BASE_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = BASE_DIR / "models" / "churn_pipeline.joblib"
 FRONTEND_DIR = BASE_DIR / "frontend"
 model = None
 model_metadata = None
 
+YesNo = Literal["Yes", "No"]
+Gender = Literal["Female", "Male"]
+ServiceOption = Literal["No", "Yes", "No internet service"]
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    await load_model()
+    yield
+
+
+app = FastAPI(
+    title="Telco Customer Churn Prediction API",
+    description="Predicts customer churn probability using a trained ML pipeline",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan,
+)
+
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
-# Pydantic request/response models (Section 8: Input Validation)
-class CustomerInput(BaseModel):
-    gender: str = Field(..., description="Customer gender", example="Female")
-    SeniorCitizen: int = Field(..., ge=0, le=1, description="Whether customer is senior citizen (0/1)")
-    Partner: str = Field(..., description="Has partner", example="Yes")
-    Dependents: str = Field(..., description="Has dependents", example="No")
-    tenure: int = Field(..., ge=0, le=72, description="Months with company")
-    PhoneService: str = Field(..., description="Has phone service", example="Yes")
-    MultipleLines: str = Field(..., description="Multiple lines", example="No")
-    InternetService: str = Field(..., description="Internet service type", example="Fiber optic")
-    OnlineSecurity: str = Field(..., description="Online security", example="No")
-    OnlineBackup: str = Field(..., description="Online backup", example="Yes")
-    DeviceProtection: str = Field(..., description="Device protection", example="No")
-    TechSupport: str = Field(..., description="Tech support", example="No")
-    StreamingTV: str = Field(..., description="Streaming TV", example="Yes")
-    StreamingMovies: str = Field(..., description="Streaming movies", example="Yes")
-    Contract: str = Field(..., description="Contract type", example="Month-to-month")
-    PaperlessBilling: str = Field(..., description="Paperless billing", example="Yes")
-    PaymentMethod: str = Field(..., description="Payment method", example="Electronic check")
-    MonthlyCharges: float = Field(..., gt=0, description="Monthly charges")
-    TotalCharges: float = Field(..., ge=0, description="Total charges")
 
-    @validator('*', pre=True)
-    def strip_strings(cls, v):
-        if isinstance(v, str):
-            return v.strip()
-        return v
+class CustomerInput(BaseModel):
+    gender: Gender = Field(..., description="Customer gender", json_schema_extra={"example": "Female"})
+    SeniorCitizen: int = Field(..., ge=0, le=1, description="Whether customer is senior citizen (0/1)")
+    Partner: YesNo = Field(..., description="Has partner", json_schema_extra={"example": "Yes"})
+    Dependents: YesNo = Field(..., description="Has dependents", json_schema_extra={"example": "No"})
+    tenure: int = Field(..., ge=0, le=72, description="Months with company")
+    PhoneService: YesNo = Field(..., description="Has phone service", json_schema_extra={"example": "Yes"})
+    MultipleLines: Literal["No", "Yes", "No phone service"] = Field(
+        ..., description="Multiple lines", json_schema_extra={"example": "No"}
+    )
+    InternetService: Literal["DSL", "Fiber optic", "No"] = Field(
+        ..., description="Internet service type", json_schema_extra={"example": "Fiber optic"}
+    )
+    OnlineSecurity: ServiceOption = Field(..., description="Online security", json_schema_extra={"example": "No"})
+    OnlineBackup: ServiceOption = Field(..., description="Online backup", json_schema_extra={"example": "Yes"})
+    DeviceProtection: ServiceOption = Field(..., description="Device protection", json_schema_extra={"example": "No"})
+    TechSupport: ServiceOption = Field(..., description="Tech support", json_schema_extra={"example": "No"})
+    StreamingTV: ServiceOption = Field(..., description="Streaming TV", json_schema_extra={"example": "Yes"})
+    StreamingMovies: ServiceOption = Field(..., description="Streaming movies", json_schema_extra={"example": "Yes"})
+    Contract: Literal["Month-to-month", "One year", "Two year"] = Field(
+        ..., description="Contract type", json_schema_extra={"example": "Month-to-month"}
+    )
+    PaperlessBilling: YesNo = Field(..., description="Paperless billing", json_schema_extra={"example": "Yes"})
+    PaymentMethod: Literal[
+        "Bank transfer (automatic)", "Credit card (automatic)", "Electronic check", "Mailed check"
+    ] = Field(..., description="Payment method", json_schema_extra={"example": "Electronic check"})
+    MonthlyCharges: float = Field(..., gt=0, allow_inf_nan=False, description="Monthly charges")
+    TotalCharges: float = Field(..., ge=0, allow_inf_nan=False, description="Total charges")
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def strip_strings(cls, value):
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
 
 class PredictionResponse(BaseModel):
     prediction: int = Field(..., description="Churn prediction (0=No, 1=Yes)")
     churn_label: str = Field(..., description="Human-readable label")
     churn_probability: float = Field(..., description="Probability of churn")
 
+
 class BatchRequest(BaseModel):
-    customers: List[CustomerInput] = Field(..., min_items=1, max_items=100, description="List of customers")
+    customers: List[CustomerInput] = Field(..., min_length=1, max_length=100, description="List of customers")
+
 
 class BatchResponse(BaseModel):
     count: int
     predictions: List[PredictionResponse]
+
 
 class ModelInfoResponse(BaseModel):
     model_type: str
@@ -78,9 +104,9 @@ class ModelInfoResponse(BaseModel):
     target_labels: Dict[int, str]
     metrics: Dict[str, Any]
 
-@app.on_event("startup")
+
 async def load_model():
-    """Load the trained pipeline on startup"""
+    """Load the trained pipeline on startup."""
     global model, model_metadata
     try:
         if MODEL_PATH.exists():
@@ -89,11 +115,11 @@ async def load_model():
                 "model_type": "Logistic Regression",
                 "version": "1.0.0",
                 "expected_features": [
-                    'gender', 'SeniorCitizen', 'Partner', 'Dependents', 'tenure',
-                    'PhoneService', 'MultipleLines', 'InternetService', 'OnlineSecurity',
-                    'OnlineBackup', 'DeviceProtection', 'TechSupport', 'StreamingTV',
-                    'StreamingMovies', 'Contract', 'PaperlessBilling', 'PaymentMethod',
-                    'MonthlyCharges', 'TotalCharges'
+                    "gender", "SeniorCitizen", "Partner", "Dependents", "tenure",
+                    "PhoneService", "MultipleLines", "InternetService", "OnlineSecurity",
+                    "OnlineBackup", "DeviceProtection", "TechSupport", "StreamingTV",
+                    "StreamingMovies", "Contract", "PaperlessBilling", "PaymentMethod",
+                    "MonthlyCharges", "TotalCharges",
                 ],
                 "target_labels": {0: "No", 1: "Yes"},
                 "metrics": {
@@ -101,126 +127,130 @@ async def load_model():
                     "Precision": 0.5061,
                     "Recall": 0.7769,
                     "F1": 0.6129,
-                    "ROC-AUC": 0.8397
-                }
+                    "ROC-AUC": 0.8397,
+                },
             }
-            print("✓ Model loaded successfully")
+            print("Model loaded successfully")
         else:
-            print("⚠ Model file not found. API will return 503 until model is available.")
-    except Exception as e:
-        print(f"⚠ Failed to load model: {e}")
+            print("Model file not found. API will return 503 until the model is available.")
+    except Exception as exc:
+        print(f"Failed to load model: {exc}")
+
+
+def json_safe(value):
+    """Replace non-finite floats so validation errors can be sent as JSON."""
+    if isinstance(value, float) and not isfinite(value):
+        return str(value)
+    if isinstance(value, dict):
+        return {key: json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe(item) for item in value]
+    return value
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    errors = jsonable_encoder(json_safe(exc.errors()))
+    return JSONResponse(status_code=422, content={"detail": "Validation Error", "errors": errors})
+
 
 @app.get("/", tags=["General"])
 async def root():
     """Serve the customer churn prediction dashboard."""
     return FileResponse(FRONTEND_DIR / "index.html")
 
+
 @app.get("/api-info", tags=["General"])
 async def api_info():
-    """Welcome endpoint with API info and documentation links."""
+    """Return API information and documentation links."""
     return {
         "message": "Welcome to the Telco Customer Churn Prediction API",
         "api_name": "Telco Churn API",
         "version": "1.0.0",
         "documentation": {
             "swagger_ui": "/docs",
-            "redoc": "/redoc"
+            "redoc": "/redoc",
         },
         "endpoints": {
             "health": "/health",
             "predict": "/predict",
             "predict_batch": "/predict-batch",
-            "model_info": "/model-info"
-        }
+            "model_info": "/model-info",
+        },
     }
+
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    """Health check endpoint"""
+    """Report whether the model is loaded."""
     if model is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model not loaded. Service unavailable."
+            detail="Model not loaded. Service unavailable.",
         )
     return {
         "status": "healthy",
         "model_loaded": True,
-        "model_type": model_metadata.get("model_type", "Unknown")
+        "model_type": model_metadata.get("model_type", "Unknown"),
     }
+
 
 @app.post("/predict", response_model=PredictionResponse, tags=["Predictions"])
 async def predict(customer: CustomerInput):
-    """Single customer churn prediction"""
+    """Predict churn for one customer."""
     if model is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model not loaded"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Model not loaded")
+
     try:
-        # Convert to DataFrame (raw input format expected by pipeline)
-        input_df = pd.DataFrame([customer.dict()])
-        
-        # Make prediction
+        input_df = pd.DataFrame([customer.model_dump()])
         prediction = int(model.predict(input_df)[0])
         probability = float(model.predict_proba(input_df)[0][1])
-        
         return PredictionResponse(
             prediction=prediction,
             churn_label="Yes" if prediction == 1 else "No",
-            churn_probability=round(probability, 4)
+            churn_probability=round(probability, 4),
         )
-    except Exception as e:
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Prediction failed: {str(e)}"
-        )
+            detail=f"Prediction failed: {exc}",
+        ) from exc
+
 
 @app.post("/predict-batch", response_model=BatchResponse, tags=["Predictions"])
 async def predict_batch(request: BatchRequest):
-    """Batch customer churn predictions"""
+    """Predict churn for up to 100 customers."""
     if model is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model not loaded"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Model not loaded")
+
     try:
-        input_df = pd.DataFrame([c.dict() for c in request.customers])
+        input_df = pd.DataFrame([customer.model_dump() for customer in request.customers])
         predictions = model.predict(input_df)
         probabilities = model.predict_proba(input_df)[:, 1]
-        
         results = []
-        for pred, prob in zip(predictions, probabilities):
-            pred_int = int(pred)
-            results.append(PredictionResponse(
-                prediction=pred_int,
-                churn_label="Yes" if pred_int == 1 else "No",
-                churn_probability=round(float(prob), 4)
-            ))
-        
+        for prediction, probability in zip(predictions, probabilities):
+            prediction_int = int(prediction)
+            results.append(
+                PredictionResponse(
+                    prediction=prediction_int,
+                    churn_label="Yes" if prediction_int == 1 else "No",
+                    churn_probability=round(float(probability), 4),
+                )
+            )
         return BatchResponse(count=len(results), predictions=results)
-    except Exception as e:
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Batch prediction failed: {str(e)}"
-        )
+            detail=f"Batch prediction failed: {exc}",
+        ) from exc
+
 
 @app.get("/model-info", response_model=ModelInfoResponse, tags=["Model"])
 async def model_info():
-    """Return model metadata"""
+    """Return model metadata."""
     if model is None or model_metadata is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model information not available"
+            detail="Model information not available",
         )
-    
     return ModelInfoResponse(**model_metadata)
-
-# Error handler for validation errors
-@app.exception_handler(422)
-async def validation_exception_handler(request, exc):
-    return JSONResponse(
-        status_code=422,
-        content={"detail": "Validation Error", "errors": exc.errors()}
-    )
