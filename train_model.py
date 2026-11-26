@@ -21,7 +21,9 @@ from sklearn.metrics import (
     roc_auc_score, confusion_matrix, classification_report
 )
 import warnings
-warnings.filterwarnings('ignore')
+
+# scikit-learn 1.5.2 passes iprint to a solver that ignores it.
+warnings.filterwarnings("ignore", message="Unknown solver options: iprint")
 
 # Paths
 DATA_PATH = Path("data/WA_Fn-UseC_-Telco-Customer-Churn.csv")

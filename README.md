@@ -24,7 +24,7 @@ This project builds a complete ML solution for predicting whether a customer wil
 
 ### Data Insights
 - **Dataset**: 7,021 customers after cleaning (originally 7,043)
-- **Churn Rate**: 26.5% (imbalanced — 73.5% No vs 26.5% Yes)
+- **Churn Rate**: 26.5% (imbalanced, with 73.5% No and 26.5% Yes)
 - **Strong Predictors**:
   - **Tenure**: Low-tenure customers (<10 months) churn significantly more
   - **Contract Type**: Month-to-month contracts have ~42% churn vs ~3% for two-year contracts
@@ -41,7 +41,7 @@ This project builds a complete ML solution for predicting whether a customer wil
 | Gradient Boosting    | 0.7929   | 0.6401    | 0.4973 | 0.5598   | 0.8351  |
 
 **Selected Model**: Logistic Regression  
-**Rationale**: Highest F1-score and best recall — critical for identifying churners early while balancing precision.
+**Rationale**: Highest F1-score and best recall. This helps identify churners early while balancing precision.
 
 ---
 
@@ -54,7 +54,8 @@ Telco-Customer-Churn/
 ├── data/
 │   └── WA_Fn-UseC_-Telco-Customer-Churn.csv
 ├── models/
-│   └── churn_pipeline.joblib
+│   ├── churn_pipeline.joblib
+│   └── churn_pipeline.metadata.json
 ├── app/
 │   └── main.py
 ├── frontend/
@@ -106,7 +107,7 @@ This generates visualizations in `notebooks/eda_outputs/`.
 python train_model.py
 ```
 
-This creates `models/churn_pipeline.joblib`.
+This creates `models/churn_pipeline.joblib` and `models/churn_pipeline.metadata.json`.
 
 ### 4. Run the FastAPI Service
 
@@ -128,7 +129,7 @@ displays the model's churn probability, recommendation, and key performance metr
 pytest -v
 ```
 
-All 7 tests should pass.
+All 11 tests should pass.
 
 ### 6. Docker Deployment
 
@@ -146,11 +147,14 @@ docker run --rm -p 8000:8000 churn-api
 
 | Method | Endpoint          | Description                        |
 |--------|-------------------|------------------------------------|
-| GET    | `/`               | Welcome message + docs links       |
-| GET    | `/health`         | Service health & model status      |
+| GET    | `/`               | Churn risk dashboard               |
+| GET    | `/api-info`       | API information and docs links     |
+| GET    | `/health`         | Service health and model status    |
 | POST   | `/predict`        | Single customer churn prediction   |
 | POST   | `/predict-batch`  | Batch predictions (max 100)        |
-| GET    | `/model-info`     | Model metadata & performance       |
+| GET    | `/model-info`     | Model metadata and metrics         |
+
+Requests with non-finite numbers or category values outside the training data return 422 with a JSON error list. The API reads model metadata from `models/churn_pipeline.metadata.json`, so retraining updates `/model-info` and the dashboard.
 
 ---
 
@@ -186,7 +190,7 @@ POST /predict
 {
   "prediction": 1,
   "churn_label": "Yes",
-  "churn_probability": 0.7823
+  "churn_probability": 0.8719
 }
 ```
 
